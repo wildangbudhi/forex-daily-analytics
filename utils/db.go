@@ -1,30 +1,26 @@
 package utils
 
 import (
-	"context"
 	"fmt"
 
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"github.com/go-pg/pg"
 )
 
-// NewDbConnection is function to create New DB Connection
-func NewDbConnection(host, port, user, password, authSrc string) (*mongo.Client, *context.Context, error) {
+func NewDbConnection(address, user, password, database string) (*pg.DB, error) {
 
-	mongoDBConnectionURI := fmt.Sprintf("mongodb://%s:%s@%s:%s/?authSource=%s", user, password, host, port, authSrc)
-
-	client, err := mongo.NewClient(options.Client().ApplyURI(mongoDBConnectionURI))
-
-	if err != nil {
-		return nil, nil, err
+	opts := &pg.Options{
+		User:     user,
+		Password: password,
+		Addr:     address,
+		Database: database,
 	}
 
-	ctx := context.Background()
-	err = client.Connect(ctx)
+	var db *pg.DB = pg.Connect(opts)
 
-	if err != nil {
-		return nil, nil, err
+	if db == nil {
+		return nil, fmt.Errorf("Database Connection Failed")
 	}
 
-	return client, &ctx, nil
+	return db, nil
+
 }

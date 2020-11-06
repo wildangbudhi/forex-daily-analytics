@@ -1,32 +1,30 @@
 package utils
 
 import (
-	"context"
 	"io/ioutil"
 
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/mongo"
+	"github.com/go-pg/pg"
 	"gopkg.in/yaml.v3"
 )
 
 type config struct {
-	AppName         string `yaml:"APP_NAME,omitempty"`
-	SaltKey         []byte `yaml:"SALT_KEY,omitempty"`
-	SecretKey       []byte `yaml:"SECRETE_KEY,omitempty"`
-	State           string `yaml:"STATE,omitempty"`
-	MongoDBHost     string `yaml:"MONGODB_HOST,omitempty"`
-	MongoDBPort     string `yaml:"MONGODB_PORT,omitempty"`
-	MongoDBUser     string `yaml:"MONGOBD_USER,omitempty"`
-	MongoDBPassword string `yaml:"MONGODB_PASSWORD,omitempty"`
-	MongoDBAuthSrc  string `yaml:"MONGOBD_AUTH_SRC,omitempty"`
+	AppName    string `yaml:"APP_NAME,omitempty"`
+	SaltKey    []byte `yaml:"SALT_KEY,omitempty"`
+	SecretKey  []byte `yaml:"SECRETE_KEY,omitempty"`
+	State      string `yaml:"STATE,omitempty"`
+	DBServer   string `yaml:"DB_SERVER,omitempty"`
+	DBPort     string `yaml:"DB_PORT,omitempty"`
+	DBUser     string `yaml:"DB_USER,omitempty"`
+	DBPassword string `yaml:"DB_PASSWORD,omitempty"`
+	DBDatabase string `yaml:"DB_DATABASE,omitempty"`
 }
 
 // Server Struct
 type Server struct {
-	Config    config
-	DB        *mongo.Client
-	DBContext *context.Context
-	Router    *gin.Engine
+	Config config
+	DB     *pg.DB
+	Router *gin.Engine
 }
 
 // NewServer is a constructor for Server Struct
@@ -39,12 +37,11 @@ func NewServer() (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	client, dbContext, err := NewDbConnection(
-		server.Config.MongoDBHost,
-		server.Config.MongoDBPort,
-		server.Config.MongoDBUser,
-		server.Config.MongoDBPassword,
-		server.Config.MongoDBAuthSrc,
+	client, err := NewDbConnection(
+		server.Config.DBServer+":"+server.Config.DBPort,
+		server.Config.DBUser,
+		server.Config.DBPassword,
+		server.Config.DBDatabase,
 	)
 
 	if err != nil {
@@ -52,7 +49,6 @@ func NewServer() (*Server, error) {
 	}
 
 	server.DB = client
-	server.DBContext = dbContext
 
 	gin.SetMode(server.Config.State)
 	server.Router = gin.Default()
