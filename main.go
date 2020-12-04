@@ -3,23 +3,23 @@ package main
 import (
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/PuerkitoBio/goquery"
 )
 
 type EconomicData struct {
-	Key      string
-	Last     float64
-	Previous float64
+	Category  string
+	Indicator string
+	Last      float64
+	Previous  float64
 }
 
 type Rules struct {
-	Category      string
 	CategoryIndex int
 	Function      func(float64, float64) int
 }
@@ -44,333 +44,206 @@ func fetchData(countryCode string) []EconomicData {
 		log.Fatal(err)
 	}
 
-	var temp *goquery.Selection
-
-	doc.Find("#overview").Children().Each(func(i int, s *goquery.Selection) {
-		if i == 3 {
-			temp = s
-		}
-	})
-
-	temp.Children().Children().Each(func(i int, s *goquery.Selection) {
-		if i == 1 {
-			temp = s
-		}
-	})
-
 	economicData := make([]EconomicData, 0)
+	tabs := []string{"gdp", "labour", "prices", "money", "trade", "government", "business", "consumer", "health"}
 
-	temp.Children().Each(func(i int, s *goquery.Selection) {
+	for _, tabName := range tabs {
 
-		var row EconomicData
+		doc.Find("#" + tabName).Children().Each(func(i int, tabContent *goquery.Selection) {
+			if i == 1 || i == 3 {
 
-		s.Children().Each(func(j int, komp *goquery.Selection) {
+				var category string
 
-			strKomp := strings.Replace(komp.Text(), "\n", "", -1)
-			strKomp = regexp.MustCompile(`(\(.*\))`).ReplaceAllLiteralString(strKomp, "")
-			strKomp = strings.TrimSpace(strKomp)
+				tabContent.Children().Children().Each(func(j int, tableContent *goquery.Selection) {
 
-			if j == 0 {
-				row.Key = strKomp
-			} else if j == 1 {
-				komponen, err := strconv.ParseFloat(strKomp, 64)
+					if j == 0 {
+						tableContent.Children().Children().Each(func(k int, thContent *goquery.Selection) {
+							if k == 0 {
+								category = strings.TrimSpace(thContent.Text())
+							}
+						})
+					} else if j == 1 {
+						tableContent.Children().Each(func(k int, trContent *goquery.Selection) {
 
-				if err != nil {
-					log.Fatal(err)
-				}
+							row := EconomicData{Category: category}
 
-				row.Last = float64(komponen)
-			} else if j == 3 {
-				komponen, err := strconv.ParseFloat(strKomp, 64)
+							trContent.Children().Each(func(l int, komp *goquery.Selection) {
 
-				if err != nil {
-					log.Fatal(err)
-				}
+								strKomp := strings.Replace(komp.Text(), "\n", "", -1)
+								strKomp = regexp.MustCompile(`(\(.*\))`).ReplaceAllLiteralString(strKomp, "")
+								strKomp = strings.TrimSpace(strKomp)
 
-				row.Previous = float64(komponen)
+								if l == 0 {
+									row.Indicator = strKomp
+								} else if l == 1 {
+									komponen, err := strconv.ParseFloat(strKomp, 64)
+
+									if err != nil {
+										row.Last = 0.0
+									} else {
+										row.Last = float64(komponen)
+									}
+								} else if l == 3 {
+									komponen, err := strconv.ParseFloat(strKomp, 64)
+
+									if err != nil {
+										row.Previous = 0.0
+									} else {
+										row.Previous = float64(komponen)
+									}
+								}
+							})
+
+							economicData = append(economicData, row)
+
+						})
+					}
+				})
+
 			}
 		})
 
-		economicData = append(economicData, row)
-
-	})
+	}
 
 	return economicData
 }
 
-func calculateScore(economicData []EconomicData) float64 {
+func higherLastBetterFunction(previous, last float64) int {
+	if last > previous {
+		return 1
+	} else if last == previous {
+		return 0
+	} else {
+		return -1
+	}
+}
+
+func lowerLastBetterFunction(previous, last float64) int {
+	if last < previous {
+		return 1
+	} else if last == previous {
+		return 0
+	} else {
+		return -1
+	}
+}
+
+func inflationFunction(previous, last float64) int {
+
+	if last == 2.0 {
+		return 1
+	}
+
+	previousDistance := math.Abs(previous - 2.0)
+	lastDistance := math.Abs(last - 2.0)
+
+	if (last > 2.0 && previous < 2.0) || (previous > 2.0 && last < 2.0) {
+		return -1
+	}
+
+	if lastDistance < previousDistance {
+		return 1
+	} else if lastDistance == previousDistance {
+		return 0
+	} else {
+		return -1
+	}
+
+}
+
+func calculateScore(economicData []EconomicData) (float64, []float64) {
 
 	categoryMap := map[string]Rules{
 		"GDP Growth Rate": Rules{
-			Category:      "GDP",
 			CategoryIndex: 0,
-			Function: func(previous, last float64) int {
-				if last > previous {
-					return 1
-				} else if last == previous {
-					return 0
-				} else {
-					return -1
-				}
-			},
+			Function:      higherLastBetterFunction,
 		},
 		"GDP Annual Growth Rate": Rules{
-			Category:      "GDP",
 			CategoryIndex: 0,
-			Function: func(previous, last float64) int {
-				if last > previous {
-					return 1
-				} else if last == previous {
-					return 0
-				} else {
-					return -1
-				}
-			},
+			Function:      higherLastBetterFunction,
 		},
 		"Unemployment Rate": Rules{
-			Category:      "Labour",
 			CategoryIndex: 1,
-			Function: func(previous, last float64) int {
-				if last < previous {
-					return 1
-				} else if last == previous {
-					return 0
-				} else {
-					return -1
-				}
-			},
+			Function:      lowerLastBetterFunction,
 		},
 		"Non Farm Payrolls": Rules{
-			Category:      "Labour",
 			CategoryIndex: 1,
-			Function: func(previous, last float64) int {
-				if last > previous {
-					return 1
-				} else if last == previous {
-					return 0
-				} else {
-					return -1
-				}
-			},
+			Function:      higherLastBetterFunction,
 		},
 		"Inflation Rate": Rules{
-			Category:      "Prices",
 			CategoryIndex: 2,
-			Function: func(previous, last float64) int {
-				if last > previous {
-					return 1
-				} else if last == previous {
-					return 0
-				} else {
-					return -1
-				}
-			},
+			Function:      inflationFunction,
 		},
 		"Inflation Rate Mom": Rules{
-			Category:      "Prices",
 			CategoryIndex: 2,
-			Function: func(previous, last float64) int {
-				if last > previous {
-					return 1
-				} else if last == previous {
-					return 0
-				} else {
-					return -1
-				}
-			},
+			Function:      inflationFunction,
 		},
 		"Balance of Trade": Rules{
-			Category:      "Trade",
 			CategoryIndex: 3,
-			Function: func(previous, last float64) int {
-				if last > previous {
-					return 1
-				} else if last == previous {
-					return 0
-				} else {
-					return -1
-				}
-			},
+			Function:      higherLastBetterFunction,
 		},
 		"Current Account": Rules{
-			Category:      "Trade",
 			CategoryIndex: 3,
-			Function: func(previous, last float64) int {
-				if last > previous {
-					return 1
-				} else if last == previous {
-					return 0
-				} else {
-					return -1
-				}
-			},
+			Function:      higherLastBetterFunction,
 		},
 		"Current Account to GDP": Rules{
-			Category:      "Trade",
 			CategoryIndex: 3,
-			Function: func(previous, last float64) int {
-				if last > previous {
-					return 1
-				} else if last == previous {
-					return 0
-				} else {
-					return -1
-				}
-			},
+			Function:      higherLastBetterFunction,
 		},
 		"Government Debt to GDP": Rules{
-			Category:      "Government",
 			CategoryIndex: 4,
-			Function: func(previous, last float64) int {
-				if last < previous {
-					return 1
-				} else if last == previous {
-					return 0
-				} else {
-					return -1
-				}
-			},
+			Function:      lowerLastBetterFunction,
 		},
 		"Government Budget": Rules{
-			Category:      "Government",
 			CategoryIndex: 4,
-			Function: func(previous, last float64) int {
-				if last > previous {
-					return 1
-				} else if last == previous {
-					return 0
-				} else {
-					return -1
-				}
-			},
+			Function:      higherLastBetterFunction,
 		},
 		"Business Confidence": Rules{
-			Category:      "Business",
 			CategoryIndex: 5,
-			Function: func(previous, last float64) int {
-				if last > previous {
-					return 1
-				} else if last == previous {
-					return 0
-				} else {
-					return -1
-				}
-			},
+			Function:      higherLastBetterFunction,
 		},
 		"Manufacturing PMI": Rules{
-			Category:      "Business",
 			CategoryIndex: 5,
-			Function: func(previous, last float64) int {
-				if last > previous {
-					return 1
-				} else if last == previous {
-					return 0
-				} else {
-					return -1
-				}
-			},
+			Function:      higherLastBetterFunction,
 		},
 		"Non Manufacturing PMI": Rules{
-			Category:      "Business",
 			CategoryIndex: 5,
-			Function: func(previous, last float64) int {
-				if last > previous {
-					return 1
-				} else if last == previous {
-					return 0
-				} else {
-					return -1
-				}
-			},
+			Function:      higherLastBetterFunction,
 		},
 		"Services PMI": Rules{
-			Category:      "Business",
 			CategoryIndex: 5,
-			Function: func(previous, last float64) int {
-				if last > previous {
-					return 1
-				} else if last == previous {
-					return 0
-				} else {
-					return -1
-				}
-			},
+			Function:      higherLastBetterFunction,
 		},
 		"Consumer Confidence": Rules{
-			Category:      "Consumer",
 			CategoryIndex: 6,
-			Function: func(previous, last float64) int {
-				if last > previous {
-					return 1
-				} else if last == previous {
-					return 0
-				} else {
-					return -1
-				}
-			},
+			Function:      higherLastBetterFunction,
 		},
 		"Retail Sales MoM": Rules{
-			Category:      "Consumer",
 			CategoryIndex: 6,
-			Function: func(previous, last float64) int {
-				if last > previous {
-					return 1
-				} else if last == previous {
-					return 0
-				} else {
-					return -1
-				}
-			},
+			Function:      higherLastBetterFunction,
 		},
 		"Building Permits": Rules{
-			Category:      "Housing",
 			CategoryIndex: 7,
-			Function: func(previous, last float64) int {
-				if last > previous {
-					return 1
-				} else if last == previous {
-					return 0
-				} else {
-					return -1
-				}
-			},
+			Function:      higherLastBetterFunction,
 		},
 		"Corporate Tax Rate": Rules{
-			Category:      "Taxes",
 			CategoryIndex: 8,
-			Function: func(previous, last float64) int {
-				if last > previous {
-					return 1
-				} else if last == previous {
-					return 0
-				} else {
-					return -1
-				}
-			},
+			Function:      higherLastBetterFunction,
 		},
 		"Personal Income Tax Rate": Rules{
-			Category:      "Taxes",
 			CategoryIndex: 8,
-			Function: func(previous, last float64) int {
-				if last > previous {
-					return 1
-				} else if last == previous {
-					return 0
-				} else {
-					return -1
-				}
-			},
+			Function:      higherLastBetterFunction,
 		},
 	}
 
 	scoreList := []float64{0, 0, 0, 0, 0, 0, 0, 0, 0}
 
 	for _, ed := range economicData {
-		val, ok := categoryMap[ed.Key]
+		val, ok := categoryMap[ed.Indicator]
 
 		if ok {
 			conditionValue := val.Function(ed.Previous, ed.Last)
-			scoreList[categoryMap[ed.Key].CategoryIndex] += float64(conditionValue)
+			scoreList[categoryMap[ed.Indicator].CategoryIndex] += float64(conditionValue)
 		}
 	}
 
@@ -384,24 +257,36 @@ func calculateScore(economicData []EconomicData) float64 {
 		}
 	}
 
-	return score
+	return score, scoreList
 }
 
 func main() {
 
-	var wg sync.WaitGroup
+	// var wg sync.WaitGroup
 	countryCodes := []string{"euro-area", "united-states", "united-kingdom", "canada", "switzerland", "japan", "australia", "new-zealand"}
 
+	// for _, countryCode := range countryCodes {
+	// 	wg.Add(1)
+	// 	go func(cc string) {
+	// 		defer wg.Done()
+	// 		data := fetchData(cc)
+	// 		score := calculateScore(data)
+	// 		fmt.Printf("%s --> %f\n", cc, score)
+	// 	}(countryCode)
+	// }
+
+	// wg.Wait()
+
 	for _, countryCode := range countryCodes {
-		wg.Add(1)
-		go func(cc string) {
-			defer wg.Done()
-			data := fetchData(cc)
-			score := calculateScore(data)
-			fmt.Printf("%s --> %f\n", cc, score)
-		}(countryCode)
+		data := fetchData(countryCode)
+		score, scoreList := calculateScore(data)
+		fmt.Printf("%s --> %f --> ", countryCode, score)
+		fmt.Println(scoreList)
 	}
 
-	wg.Wait()
+	// data := fetchData("united-states")
 
+	// for i := 0; i < len(data); i++ {
+	// 	fmt.Println(data[i])
+	// }
 }
