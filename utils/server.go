@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-pg/pg"
+	"github.com/robfig/cron/v3"
 	"gopkg.in/yaml.v3"
 )
 
@@ -22,9 +23,10 @@ type config struct {
 
 // Server Struct
 type Server struct {
-	Config config
-	DB     *pg.DB
-	Router *gin.Engine
+	Config    config
+	DB        *pg.DB
+	Router    *gin.Engine
+	Scheduler *cron.Cron
 }
 
 // NewServer is a constructor for Server Struct
@@ -52,6 +54,8 @@ func NewServer() (*Server, error) {
 
 	gin.SetMode(server.Config.State)
 	server.Router = gin.Default()
+
+	server.Scheduler = cron.New()
 
 	return &server, nil
 }
