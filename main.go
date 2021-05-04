@@ -11,6 +11,7 @@ import (
 type Country struct {
 	Economcis services.EconomcisData
 	COT       services.CommitmentOfTrader
+	Technical services.Technical
 }
 
 func main() {
@@ -18,9 +19,7 @@ func main() {
 	var countriesName []string = []string{"united-states", "euro-area", "united-kingdom", "australia", "new-zealand", "canada", "switzerland", "japan", "gold"}
 	var countriesCurrency []string = []string{"usd", "eur", "gbp", "aud", "nzd", "cad", "chf", "jpy", "xau"}
 
-	var cotData services.CommitmentOfTrader = services.NewCommitmentOfTrader(countriesName[5])
-	cotData.FetchData()
-	cotData.CalculateScore()
+	var technicalAllData map[string]services.Technical = services.NewTechnicalData()
 
 	var currencyMap map[string]*Country = make(map[string]*Country)
 
@@ -159,11 +158,18 @@ func main() {
 		cotScore = currencyMap[pairs[i][0]].COT.Difference - currencyMap[pairs[i][1]].COT.Difference
 		cotChangesScore = currencyMap[pairs[i][0]].COT.ChangesDifferece - currencyMap[pairs[i][1]].COT.ChangesDifferece
 
+		var technicalData services.Technical = technicalAllData[fmt.Sprintf("%s%s", pairs[i][0], pairs[i][1])]
+
 		fmt.Printf("PAIR : %s%s\n", baseCurrency, quoteCurrency)
 		fmt.Printf("ECONOMICS SCORE : %d\n", economicsScore)
 		fmt.Printf("MONEY SUPPLY SCORE : %.6f\n", moneySuppyScore)
 		fmt.Printf("COT SCORE : %.3f\n", cotScore)
 		fmt.Printf("COT CHANGES SCORE : %.3f\n", cotChangesScore)
+		fmt.Printf("TECHNICAL\n")
+		fmt.Printf("Hourly : %s\n", technicalData.Hourly)
+		fmt.Printf("Daily : %s\n", technicalData.Daily)
+		fmt.Printf("Weekly : %s\n", technicalData.Weekly)
+		fmt.Printf("Monthly : %s\n", technicalData.Monthly)
 
 		fmt.Println()
 
