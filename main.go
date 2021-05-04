@@ -112,6 +112,7 @@ func main() {
 		{"aud", "usd"},
 		{"cad", "chf"},
 		{"cad", "jpy"},
+		{"chf", "jpy"},
 		{"eur", "aud"},
 		{"eur", "cad"},
 		{"eur", "chf"},
