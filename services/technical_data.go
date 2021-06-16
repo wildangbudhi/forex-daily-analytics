@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type Technical struct {
@@ -45,6 +46,9 @@ func fetchData(category string) []string {
 	}
 
 	var responseString string = string(responseData)
+
+	// fmt.Println(responseString)
+
 	var responses []string = strings.Split(responseString, "\n")
 	responses = responses[1 : len(responses)-1]
 
@@ -56,6 +60,7 @@ func NewTechnicalData() map[string]Technical {
 	var data []string = make([]string, 0)
 
 	var currencyData []string = fetchData("currency")
+	time.Sleep(1 * time.Second)
 	var commodityData []string = fetchData("commodity")
 
 	data = append(data, currencyData...)

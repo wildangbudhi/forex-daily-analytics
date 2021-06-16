@@ -14,14 +14,27 @@ type Country struct {
 	Technical services.Technical
 }
 
-func main() {
+type PairData struct {
+	EconomicsScore   int
+	MoneySupplyScore float64
+	COTScore         float64
+	COTChangesScore  float64
+	Technical        services.Technical
+}
 
-	var countriesName []string = []string{"united-states", "euro-area", "united-kingdom", "australia", "new-zealand", "canada", "switzerland", "japan", "gold"}
-	var countriesCurrency []string = []string{"usd", "eur", "gbp", "aud", "nzd", "cad", "chf", "jpy", "xau"}
+var (
+	countriesName     []string                      = []string{"united-states", "euro-area", "united-kingdom", "australia", "new-zealand", "canada", "switzerland", "japan", "gold", "indonesia"}
+	countriesCurrency []string                      = []string{"usd", "eur", "gbp", "aud", "nzd", "cad", "chf", "jpy", "xau", "idr"}
+	technicalAllData  map[string]services.Technical = make(map[string]services.Technical)
+	currencyMap       map[string]*Country           = make(map[string]*Country)
+	pairs             [][]string                    = make([][]string, 0)
+	pairData          map[string]*PairData          = make(map[string]*PairData)
+)
 
-	var technicalAllData map[string]services.Technical = services.NewTechnicalData()
+func prepareData() {
+	technicalAllData = services.NewTechnicalData()
 
-	var currencyMap map[string]*Country = make(map[string]*Country)
+	currencyMap = make(map[string]*Country)
 
 	for i := 0; i < len(countriesName); i++ {
 		var newCountry Country = Country{
@@ -65,6 +78,64 @@ func main() {
 
 	wg.Wait()
 
+	pairs = [][]string{
+		{"aud", "cad"},
+		{"aud", "chf"},
+		{"aud", "jpy"},
+		{"aud", "nzd"},
+		{"aud", "usd"},
+		{"cad", "chf"},
+		{"cad", "jpy"},
+		{"chf", "jpy"},
+		{"eur", "aud"},
+		{"eur", "cad"},
+		{"eur", "chf"},
+		{"eur", "gbp"},
+		{"eur", "jpy"},
+		{"eur", "nzd"},
+		{"eur", "usd"},
+		{"gbp", "aud"},
+		{"gbp", "cad"},
+		{"gbp", "chf"},
+		{"gbp", "jpy"},
+		{"gbp", "nzd"},
+		{"gbp", "usd"},
+		{"nzd", "cad"},
+		{"nzd", "chf"},
+		{"nzd", "jpy"},
+		{"nzd", "usd"},
+		{"usd", "cad"},
+		{"usd", "chf"},
+		{"usd", "jpy"},
+		{"xau", "usd"},
+	}
+
+	for i := 0; i < len(pairs); i++ {
+		var baseCurrency, quoteCurrency string = strings.ToUpper(pairs[i][0]), strings.ToUpper(pairs[i][1])
+		var pair PairData = PairData{}
+
+		if pairs[i][0] != "xau" && pairs[i][1] != "xau" {
+			pair.EconomicsScore = currencyMap[pairs[i][0]].Economcis.EconomicsScore - currencyMap[pairs[i][1]].Economcis.EconomicsScore
+			pair.MoneySupplyScore = currencyMap[pairs[i][1]].Economcis.MoneySupply.Score - currencyMap[pairs[i][0]].Economcis.MoneySupply.Score
+		} else {
+			pair.EconomicsScore = currencyMap[pairs[i][1]].Economcis.EconomicsScore
+			pair.MoneySupplyScore = currencyMap[pairs[i][1]].Economcis.MoneySupply.Score
+		}
+
+		pair.COTScore = currencyMap[pairs[i][0]].COT.Difference - currencyMap[pairs[i][1]].COT.Difference
+		pair.COTChangesScore = currencyMap[pairs[i][0]].COT.ChangesDifferece - currencyMap[pairs[i][1]].COT.ChangesDifferece
+
+		var pairDataKey string = fmt.Sprintf("%s%s", strings.ToLower(baseCurrency), strings.ToLower(quoteCurrency))
+
+		pair.Technical = technicalAllData[pairDataKey]
+
+		pairData[pairDataKey] = &pair
+
+	}
+}
+
+func previewIndividuData() {
+
 	fmt.Println()
 	fmt.Println()
 
@@ -104,38 +175,9 @@ func main() {
 
 	fmt.Println("===========================================================================================================================")
 
-	var pairs [][]string = [][]string{
-		{"aud", "cad"},
-		{"aud", "chf"},
-		{"aud", "jpy"},
-		{"aud", "nzd"},
-		{"aud", "usd"},
-		{"cad", "chf"},
-		{"cad", "jpy"},
-		{"chf", "jpy"},
-		{"eur", "aud"},
-		{"eur", "cad"},
-		{"eur", "chf"},
-		{"eur", "gbp"},
-		{"eur", "jpy"},
-		{"eur", "nzd"},
-		{"eur", "usd"},
-		{"gbp", "aud"},
-		{"gbp", "cad"},
-		{"gbp", "chf"},
-		{"gbp", "jpy"},
-		{"gbp", "nzd"},
-		{"gbp", "usd"},
-		{"nzd", "cad"},
-		{"nzd", "chf"},
-		{"nzd", "jpy"},
-		{"nzd", "usd"},
-		{"usd", "cad"},
-		{"usd", "chf"},
-		{"usd", "jpy"},
-		{"xau", "usd"},
-	}
+}
 
+func previewPairData() {
 	fmt.Println()
 	fmt.Println()
 
@@ -144,38 +186,31 @@ func main() {
 
 	for i := 0; i < len(pairs); i++ {
 
-		var baseCurrency, quoteCurrency string = strings.ToUpper(pairs[i][0]), strings.ToUpper(pairs[i][1])
-		var economicsScore int
-		var moneySuppyScore, cotScore, cotChangesScore float64
+		var pairName string = fmt.Sprintf("%s%s", strings.ToLower(pairs[i][0]), strings.ToLower(pairs[i][1]))
+		var pair *PairData = pairData[pairName]
 
-		if pairs[i][0] != "xau" && pairs[i][1] != "xau" {
-			economicsScore = currencyMap[pairs[i][0]].Economcis.EconomicsScore - currencyMap[pairs[i][1]].Economcis.EconomicsScore
-			moneySuppyScore = currencyMap[pairs[i][0]].Economcis.MoneySupply.Score - currencyMap[pairs[i][1]].Economcis.MoneySupply.Score
-		} else {
-			economicsScore = currencyMap[pairs[i][1]].Economcis.EconomicsScore
-			moneySuppyScore = currencyMap[pairs[i][1]].Economcis.MoneySupply.Score
-		}
-
-		cotScore = currencyMap[pairs[i][0]].COT.Difference - currencyMap[pairs[i][1]].COT.Difference
-		cotChangesScore = currencyMap[pairs[i][0]].COT.ChangesDifferece - currencyMap[pairs[i][1]].COT.ChangesDifferece
-
-		var technicalData services.Technical = technicalAllData[fmt.Sprintf("%s%s", pairs[i][0], pairs[i][1])]
-
-		fmt.Printf("PAIR : %s%s\n", baseCurrency, quoteCurrency)
-		fmt.Printf("ECONOMICS SCORE : %d\n", economicsScore)
-		fmt.Printf("MONEY SUPPLY SCORE : %.6f\n", moneySuppyScore)
-		fmt.Printf("COT SCORE : %.3f\n", cotScore)
-		fmt.Printf("COT CHANGES SCORE : %.3f\n", cotChangesScore)
+		fmt.Printf("PAIR : %s\n", pairName)
+		fmt.Printf("ECONOMICS SCORE : %d\n", pair.EconomicsScore)
+		fmt.Printf("MONEY SUPPLY SCORE : %.6f\n", pair.MoneySupplyScore)
+		fmt.Printf("COT SCORE : %.3f\n", pair.COTScore)
+		fmt.Printf("COT CHANGES SCORE : %.3f\n", pair.COTChangesScore)
 		fmt.Printf("TECHNICAL\n")
-		fmt.Printf("Hourly : %s\n", technicalData.Hourly)
-		fmt.Printf("Daily : %s\n", technicalData.Daily)
-		fmt.Printf("Weekly : %s\n", technicalData.Weekly)
-		fmt.Printf("Monthly : %s\n", technicalData.Monthly)
+		fmt.Printf("Hourly : %s\n", pair.Technical.Hourly)
+		fmt.Printf("Daily : %s\n", pair.Technical.Daily)
+		fmt.Printf("Weekly : %s\n", pair.Technical.Weekly)
+		fmt.Printf("Monthly : %s\n", pair.Technical.Monthly)
 
 		fmt.Println()
 
 	}
 
 	fmt.Println("======================================================================================================================")
+}
+
+func main() {
+
+	prepareData()
+	previewIndividuData()
+	previewPairData()
 
 }
