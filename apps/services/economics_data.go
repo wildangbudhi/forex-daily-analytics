@@ -122,6 +122,8 @@ func (obj *EconomcisData) FetchData() {
 
 	}
 
+	fmt.Println(tradingEconomicData)
+
 	obj.economicsData = tradingEconomicData
 }
 
